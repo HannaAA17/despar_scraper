@@ -1,0 +1,1 @@
+scrapy crawl product_list -a store="https://shop.desparsicilia.it/spesa-ritiro-negozio/viale-dellolimpo-24"

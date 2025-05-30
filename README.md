@@ -248,4 +248,4 @@ scrapy crawl 3_product_details -a product_limit=100
 4. Make a `4_price_update` spider for regular use, input `categories.json` and get all ( prices and promotions only )
 
 5. Example
-    ![alt text](diagram.png)
+    ![alt text](data/diagram.png)

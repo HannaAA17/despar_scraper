@@ -1,29 +1,61 @@
+# %%writefile /content/despar_scraper/despar_scraper/spiders/2_product_list.py
 
+import json
 import scrapy
 from scrapy.http import HtmlResponse
 
-from urllib.parse import urlparse
 
 class ProductListSpider(scrapy.Spider):
-    name = 'product_list'
+    name = '2_product_list'
     allowed_domains = ['shop.desparsicilia.it', 'shop.despar.com']
 
+    # FEEDS
+    custom_settings = {
+        'LOG_FILE': 'data/log/product_list.log',
+        
+        'FEEDS': {
+            'data/json/categories.json': {
+                'format': 'json',
+                'overwrite': True,
+                'encoding': 'utf-8',
+                'item_classes': ['despar_scraper.items.DesparCategoryItem'],   
+            },
+            'data/json/product_list.json': {
+                'format': 'json',
+                'overwrite': True,
+                'encoding': 'utf-8',
+                'item_classes': ['despar_scraper.items.DesparProductItem'],
+            },
+            'data/json/promos.json': {
+                'format': 'json',
+                'overwrite': True,
+                'encoding': 'utf-8',
+                'item_classes': ['despar_scraper.items.DesparPromoItem'],
+            },
+        }
+    }
 
-    def __init__(self, store, dev=False, *args, **kwargs):
+    def __init__(self, store_list_file='data/json/stores.json', dev=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.store = store
-        self.domain = '{uri.scheme}://{uri.netloc}'.format(uri=urlparse(store))
+        self.store_list_file = store_list_file
         self.dev = dev
-        
-        
-    async def start(self):
-        yield scrapy.Request(
-            url=self.store,
-            callback=self.parse__get_categories,
-        )
 
+    async def start(self):
+        # open json file in async function
+        with open(self.store_list_file, 'r') as f:
+            store_list = json.load(f) if not self.dev else json.load(f)[:1]
+        
+        for store in store_list:
+            yield scrapy.Request(
+                url=store['url'],
+                callback=self.parse__get_categories,
+                meta={'store': store}
+            )
 
     def parse__get_categories(self, response: HtmlResponse):
+        store = response.meta['store']
+
+        # Extract categories
         for main_tag in response.css('div.main-navigation__item--container'):
             main_category = main_tag.css('div.main-navigation__item--title > span::text').get(default='').strip()
 
@@ -31,26 +63,32 @@ class ProductListSpider(scrapy.Spider):
                 sub_tag_tag = sub_tag.css('div.columns__item--mobile > a')
                 sub_category = sub_tag_tag.css('h4::text').get(default='').strip()
                 sub_category_href = sub_tag_tag.attrib.get('href', '')
-                sub_category_id = sub_category_href.split('_')[-1] if '_' in sub_category_href else ''
-
+                sub_category_slug = sub_category_href.split('/')[-1]
+                sub_category_id = sub_category_slug.split('_')[-1] if '_' in sub_category_slug else ''
+                
                 for tag in sub_tag.css('div.columns__item--sub > div > a'):
                     category = tag.css('::text').get(default='').strip()
                     category_href = tag.attrib.get('href', '')
-                    category_id = category_href.split('_')[-1] if '_' in category_href else ''
-
-                    yield {
+                    category_slug = category_href.split('/')[-1]
+                    category_id = category_slug.split('_')[-1] if '_' in category_slug else ''
+                    
+                    category_data = {
                         'item_type': 'category',
                         'main_category': main_category,
                         'sub_category': sub_category,
-                        'sub_category_href': self.domain + sub_category_href,
+                        'sub_category_slug': sub_category_slug,
                         'sub_category_id': sub_category_id,
                         'category': category,
-                        'category_href': self.domain + category_href,
+                        'category_slug': category_slug,
                         'category_id': category_id,
+                        'category_hierarchy': ' > '.join([main_category, sub_category, category]), 
+                        'store_pk': store['pk'],
                     }
+                    
+                    yield category_data
 
                     yield scrapy.FormRequest(
-                        url=self.store+'/ajax/productsPagination',
+                        url=store['url']+'/ajax/productsPagination',
                         formdata={
                             'page_num': '1',
                             'category_id': category_id,
@@ -61,7 +99,11 @@ class ProductListSpider(scrapy.Spider):
                             'special_id': '',
                         },
                         callback=self.parse__get_products_list,
-                        meta={'category_id': category_id, 'page': 1, 'attempt': 1},
+                        meta={
+                            'store': store,
+                            'category': category_data, 
+                            'page': 1, 'attempt': 1
+                        },
                     )
                 
                     if self.dev:
@@ -69,9 +111,10 @@ class ProductListSpider(scrapy.Spider):
 
 
     def parse__get_products_list(self, response: HtmlResponse):
-        category_id = response.meta['category_id']
+        store = response.meta['store']
+        category = response.meta['category']
         page = response.meta['page']
-        attempt = response.meta.get('attempt', 1)
+        attempt = response.meta['attempt']
 
         # Handle site errors/blocks
         try:
@@ -80,17 +123,17 @@ class ProductListSpider(scrapy.Spider):
             html = json_response.get('html', '')
 
             if not html:
-                raise ValueError("Empty HTML in response")
+                raise ValueError('Empty HTML in response')
 
         except ValueError as e:
             # Specific handling for JSON decode errors
-            error_msg = f"Invalid JSON response for category {category_id} page {page}"
+            error_msg = 'Invalid JSON response for category {} page {}'.format(category['category_hierarchy'], page)
             yield self._handle_parse_error(response, e, error_msg, attempt)
             return None
 
         except Exception as e:
             # General exception handling
-            error_msg = f"Unexpected error processing category {category_id} page {page}"
+            error_msg = 'Unexpected error processing category {} page {}'.format(category['category_hierarchy'], page)
             yield self._handle_parse_error(response, e, error_msg, attempt)
             return None
 
@@ -102,7 +145,7 @@ class ProductListSpider(scrapy.Spider):
 
         # Parse Products
         if not products:
-            self.logger.warning(f"No products found for category {category_id} page {page}")
+            self.logger.warning('No products found for category {} page {}'.format(category['category_hierarchy'], page))
             return None
 
         for prod in products:
@@ -113,9 +156,13 @@ class ProductListSpider(scrapy.Spider):
                 'brand': prod.attrib.get('data-brand'),
                 'price': prod.attrib.get('data-price'),
                 'old_price': prod.attrib.get('data-old-price'),
-                'category_id': category_id,
                 'meta': prod.attrib.get('data-meta'),
+                'icons': prod.css('div.special-icon  > span.icon[data-tooltip]::attr(data-tooltip)').getall(),
                 'img': prod.attrib.get('data-img-src'),
+                'category_id': category['category_id'], #
+                'category_hierarchy': category['category_hierarchy'], #
+                'store_pk': store['pk'], #
+                'url': store['url']+'/prodotto/'+prod.attrib.get('data-id'),
             }
             yield product_data
             
@@ -126,9 +173,10 @@ class ProductListSpider(scrapy.Spider):
                 promo_data = {
                     'item_type': 'promo',
                     'product_id': product_data['id_'],
-                    'type': promo_value_tag.attrib['class'],
+                    'type_': promo_value_tag.attrib['class'],
                     'value': promo_value_tag.css('::text').get(None),
                     'end_date': promo_tag.css('span.text::text').get(None),
+                    'store_pk': store['pk'], #
                 }
                 yield promo_data
 
@@ -138,7 +186,7 @@ class ProductListSpider(scrapy.Spider):
                 url=response.url,
                 formdata={
                     'page_num': str(page + 1),
-                    'category_id': category_id,
+                    'category_id': category['category_id'],
                     'page_container': '1',
                     'featured_category_id': '0',
                     'productsPerPage': '40',
@@ -146,7 +194,11 @@ class ProductListSpider(scrapy.Spider):
                     'special_id': '',
                 },
                 callback=self.parse__get_products_list,
-                meta={'category_id': category_id, 'page': page + 1},
+                meta={
+                    'store': store, 
+                    'category': category, 
+                    'page': page + 1, 'attempt': 1
+                },
             )
 
 
@@ -155,7 +207,7 @@ class ProductListSpider(scrapy.Spider):
 
         if attempt < max_attempts:
             self.logger.warning(
-                f"[Retry {attempt}/{max_attempts}] {error_msg}. Error: {str(error)}"
+                f'[Retry {attempt}/{max_attempts}] {error_msg}. Error: {str(error)}'
             )
             # Clone request with incremented attempt counter
             yield response.request.replace(
@@ -164,5 +216,5 @@ class ProductListSpider(scrapy.Spider):
             )
         else:
             self.logger.error(
-                f"Max retries ({max_attempts}) exceeded for {error_msg}. Error: {str(error)}"
+                f'Max retries ({max_attempts}) exceeded for {error_msg}. Error: {str(error)}'
             )

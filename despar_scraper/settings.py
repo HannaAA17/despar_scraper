@@ -1,3 +1,4 @@
+# %%writefile /content/despar_scraper/despar_scraper/settings.py
 
 BOT_NAME = "despar_scraper"
 
@@ -35,34 +36,7 @@ DEFAULT_REQUEST_HEADERS = {
 }
 
 # feed to output/file.json
-FEEDS = {
-    'data/categories.json': {
-        'format': 'json',
-        'overwrite': True,
-        'encoding': 'utf-8',
-        'item_classes': ['despar_scraper.items.DesparCategoryItem'],   
-    },
-    'data/products.json': {
-        'format': 'json',
-        'overwrite': True,
-        'encoding': 'utf-8',
-        'item_classes': ['despar_scraper.items.DesparProductItem'],
-    },
-    'data/promos.json': {
-        'format': 'json',
-        'overwrite': True,
-        'encoding': 'utf-8',
-        'item_classes': ['despar_scraper.items.DesparPromoItem'],
-    },
-    'data/all.json': {
-        'format': 'json',
-        'overwrite': True,
-        'encoding': 'utf-8',
-    }
-}
-
 
 LOG_ENABLED = True  
 LOG_LEVEL = 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, CRITICAL in console
-LOG_FILE = 'data/debug.log'  
 LOG_FILE_APPEND = False 

@@ -48,6 +48,7 @@ class DesparPromoItem(scrapy.Item):
     type_ = scrapy.Field()
     value = scrapy.Field()
     end_date = scrapy.Field()
+    store_pk = scrapy.Field()
 
 class DesparProductDetailsItem(scrapy.Item):
     product_id = scrapy.Field()

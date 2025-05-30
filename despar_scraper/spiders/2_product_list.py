@@ -144,14 +144,16 @@ class ProductListSpider(scrapy.Spider):
         response_ = scrapy.Selector(text=html)
 
         # Select the products
-        products = response_.css('section.product > div[data-id]')
+        products = response_.css('section.product')
 
         # Parse Products
         if not products:
             self.logger.warning('No products found for category {} page {}'.format(category['category_hierarchy'], page))
             return None
 
-        for prod in products:
+        for prod_tag in products:
+            prod = prod_tag.css('div[data-id]')
+            
             product_data = {
                 'item_type': 'product',
                 'id_': prod.attrib.get('data-id'),
@@ -160,7 +162,7 @@ class ProductListSpider(scrapy.Spider):
                 'price': prod.attrib.get('data-price'),
                 'old_price': prod.attrib.get('data-old-price'),
                 'meta': prod.attrib.get('data-meta'),
-                'icons': prod.css('div.special-icon  > span.icon[data-tooltip]::attr(data-tooltip)').getall(),
+                'icons': prod_tag.css('div.special-icon  > span.icon[data-tooltip]::attr(data-tooltip)').getall(),
                 'img': prod.attrib.get('data-img-src'),
                 'category_id': category['category_id'], #
                 'category_hierarchy': category['category_hierarchy'], #
@@ -170,7 +172,7 @@ class ProductListSpider(scrapy.Spider):
             yield product_data
             
             # get promo
-            promo_tag = prod.css('div.product-badge')
+            promo_tag = prod_tag.css('div.product-badge')
             if promo_tag:
                 promo_value_tag = promo_tag.css('div.promo-container > span')
                 promo_data = {

@@ -3,15 +3,20 @@
 This Scrapy project scrapes store information, product catalogs, and product details from Despar online stores.
 
 ## Table of Contents
+- [Scraping Strategy](#scraping-strategy)
+  - [Phase 1: Store Data Extraction](#phase-1-store-data-extraction)
+  - [Phase 2: Category Structure Mapping](#phase-2-category-structure-mapping)
+  - [Phase 3: Product Catalog Extraction](#phase-3-product-catalog-extraction)
+  - [Phase 4: Product Details Extraction](#phase-4-product-details-extraction)
 - [Project Structure](#project-structure)
 - [Data Outputs](#data-outputs)
 - [Core Spiders](#core-spiders)
 - [Key Endpoints](#key-endpoints)
 - [Installation](#installation)
 - [How to Run](#how-to-run)
-  - [1. Scrape Store Locations](#1-scrape-store-locations)
-  - [2. Scrape Product Catalog](#2-scrape-product-catalog)
-  - [3. Scrape Product Details](#3-scrape-product-details)
+  - [Scrape Store Locations](#1-scrape-store-locations)
+  - [Scrape Product Catalog](#2-scrape-product-catalog)
+  - [Scrape Product Details](#3-scrape-product-details)
   - [Customization Options](#customization-options)
 - [Output Samples](#output-samples)
   - [Store Item](#store-item)
@@ -19,6 +24,53 @@ This Scrapy project scrapes store information, product catalogs, and product det
   - [Product List Item](#product-list-item)
   - [Product Promo Item](#product-promo-item)
 - [Recommended Improvements](#recommended-improvements)
+
+
+## Scraping Strategy
+
+### Phase 1: Store Data Extraction
+1. **Initial Website Access**
+   - Navigate to the DESPAR homepage and identify all service types (Home Delivery and In-Store Pickup)
+   - Detect embedded JSON data containing store information in page scripts
+
+2. **JSON Data Extraction**
+   - Extract five critical JSON objects:
+     - `atHomeCitiesJson` (Cities offering home delivery)
+     - `atHomeZipCodeItems` (Zip codes for delivery areas)
+     - `atStoreCitiesJson` (Cities with physical stores)
+     - `storesJson` (Detailed store information)
+     - `stores4MapsJson` (Geographical data)
+
+3. **Data Normalization**
+   - Process physical stores with complete address/coordinate data
+   - Treat home delivery zones as virtual stores
+   - Create unified store records with service type classification
+
+### Phase 2: Category Structure Mapping
+1. **Category Tree Discovery**
+   - Identify three category levels:
+     - Main Category
+     - Sub Category
+     - Category
+
+2. **URL Generation**
+   - Create canonical URLs for all categories
+   - Store complete category paths
+
+### Phase 3: Product Catalog Extraction
+1. **Lightweight Product Listing**
+   - Extract basic product information from category pages:
+     - Product IDs and names
+     - Current and original prices
+     - Promotion indicators
+     - Thumbnail images
+   - Handle pagination systematically
+
+### Phase 4: Product Details Extraction
+1. **Comprehensive Product Details**
+   - For each identified product:
+     - Extract high-resolution images
+     - Collect full product descriptions
 
 
 ## Project Structure

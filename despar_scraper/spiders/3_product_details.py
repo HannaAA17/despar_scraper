@@ -21,15 +21,15 @@ class ProductDetailsSpider(scrapy.Spider):
         }
     }
     
-    def __init__(self, product_list_file='data/json/product_list.json', dev=False, *args, **kwargs):
+    def __init__(self, product_list_file='data/json/product_list.json', product_limit='0', *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.product_list_file = product_list_file
-        self.dev = dev
+        self.product_limit = int(product_limit)
         
     async def start(self):
         # open json file in async function
         with open(self.product_list_file, 'r') as f:
-            product_list = json.load(f) if not self.dev else json.load(f)[:10]
+            product_list = json.load(f) if not self.product_limit else json.load(f)[:self.product_limit]
         
         for prod in product_list:
             yield scrapy.Request(

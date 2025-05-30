@@ -35,15 +35,16 @@ class ProductListSpider(scrapy.Spider):
         }
     }
 
-    def __init__(self, store_list_file='data/json/stores.json', dev=None, *args, **kwargs):
+    def __init__(self, store_list_file='data/json/stores.json', store_limit='0', category_limit='0', *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.store_list_file = store_list_file
-        self.dev = dev
+        self.category_limit = int(category_limit)
+        self.store_limit = int(store_limit)
 
     async def start(self):
         # open json file in async function
         with open(self.store_list_file, 'r') as f:
-            store_list = json.load(f) if not self.dev else json.load(f)[:1]
+            store_list = json.load(f) if not self.store_limit else json.load(f)[:self.store_limit]
         
         for store in store_list:
             yield scrapy.Request(
@@ -54,7 +55,7 @@ class ProductListSpider(scrapy.Spider):
 
     def parse__get_categories(self, response: HtmlResponse):
         store = response.meta['store']
-
+        cat_count = 0
         # Extract categories
         for main_tag in response.css('div.main-navigation__item--container'):
             main_category = main_tag.css('div.main-navigation__item--title > span::text').get(default='').strip()
@@ -105,9 +106,11 @@ class ProductListSpider(scrapy.Spider):
                             'page': 1, 'attempt': 1
                         },
                     )
-                
-                    if self.dev:
-                        return None
+
+                    cat_count += 1
+                    if self.category_limit:
+                        if cat_count >= self.category_limit:
+                            return None
 
 
     def parse__get_products_list(self, response: HtmlResponse):
